@@ -1,100 +1,167 @@
-/**
- * Include the Geode headers.
- */
+#include <string>
+#include <fstream>
+#include <vector>
+#include <algorithm>
 #include <Geode/Geode.hpp>
+#include <Geode/modify/LevelInfoLayer.hpp>
+#include <Geode/binding/LevelInfoLayer.hpp>
+#include "objects.hpp"
 
-/**
- * Brings cocos2d and all Geode namespaces to the current scope.
- */
 using namespace geode::prelude;
 
-/**
- * `$modify` lets you extend and modify GD's classes.
- * To hook a function in Geode, simply $modify the class
- * and write a new function definition with the signature of
- * the function you want to hook.
- *
- * Here we use the overloaded `$modify` macro to set our own class name,
- * so that we can use it for button callbacks.
- *
- * Notice the header being included, you *must* include the header for
- * the class you are modifying, or you will get a compile error.
- *
- * Another way you could do this is like this:
- *
- * struct MyMenuLayer : Modify<MyMenuLayer, MenuLayer> {};
- */
-#include <Geode/modify/MenuLayer.hpp>
-class $modify(MyMenuLayer, MenuLayer) {
-	/**
-	 * Typically classes in GD are initialized using the `init` function, (though not always!),
-	 * so here we use it to add our own button to the bottom menu.
-	 *
-	 * Note that for all hooks, your signature has to *match exactly*,
-	 * `void init()` would not place a hook!
-	*/
-	bool init() {
-		/**
-		 * We call the original init function so that the
-		 * original class is properly initialized.
-		 */
-		if (!MenuLayer::init()) {
-			return false;
+std::vector<std::string> splitString(const std::string& s, const std::string& delimiter);
+std::string joinString(const std::vector<std::string>& elems, const std::string& delimiter);
+
+class $modify(MakeLevelLayoutLayer, LevelInfoLayer) {
+    bool init(GJGameLevel* level, bool challenge) {
+        if (!LevelInfoLayer::init(level, challenge))
+            return false;
+        
+        auto menu = this->getChildByID("left-side-menu");
+        if (menu) {
+            auto btn = CCMenuItemSpriteExtra::create(
+                CCSprite::createWithSpriteFrameName("GJ_likeBtn_001.png"),
+                this, menu_selector(MakeLevelLayoutLayer::onButton)
+            );
+            btn->setID("export-button"_spr);
+            menu->addChild(btn);
+            menu->updateLayout();
+        }
+
+        return true;
+    }
+
+    void onButton(CCObject*) {
+		GameLevelManager *gameLevelManager = GameLevelManager::sharedState();
+		GJGameLevel *level = this->m_level;
+		// GJGameLevel *level = gameLevelManager->getSavedLevel(26681070);
+		std::string levelString = ZipUtils::decompressString(level->m_levelString, false, 0);
+		log::info("{}", levelString);
+
+		std::vector<std::string> levelStringSplit = splitString(levelString, ";");
+		std::string firstElement = levelStringSplit.front();
+		levelStringSplit.erase(levelStringSplit.begin());
+
+		for (std::string& objectStr : levelStringSplit) {
+			bool isDecoration = false;
+			bool dontFade = false;  // 64
+			bool dontEnter = false; // 67
+			bool customRotationSpeed = false; // 97
+			std::string newObjectStr = "";
+
+			std::vector<std::string> splitStrings = splitString(objectStr, ",");
+			std::vector<std::vector<std::string>> splitStringsPairs;
+			for (int i = 0; i < splitStrings.size() - 1; i += 2) {
+				splitStringsPairs.push_back({ splitStrings[i], splitStrings[i + 1] });
+			}
+
+			// log::info("Object before: {}", objectStr);
+
+			for (std::vector<std::string>& pair : splitStringsPairs) {
+				int propID = std::stoi(pair[0]);
+
+				if (propID == 1) { // id
+					if (std::find(objects.begin(), objects.end(), std::stoi(pair[1])) == objects.end()) { // Check if object is decoration
+						isDecoration = true;
+						objectStr = "";
+						break;
+					} else {
+						newObjectStr += "1," + pair[1] + ",";
+						continue;
+					}
+				}
+
+				if (isDecoration) break;
+
+				switch (propID) {
+					case 21: // color 1 to channel 1
+						newObjectStr += "21,1,";
+						continue;
+					case 22: // color 2 to channel 1
+						newObjectStr += "22,1,";
+						continue;
+					case 43: // delete HSV 1
+						continue;
+					case 44: // delete HSV 2
+						continue;
+					case 64: // don't fade
+						dontFade = true;
+						newObjectStr += "64,1,";
+						continue;
+					case 67: // don't enter
+						dontEnter = true;
+						newObjectStr += "67,1,";
+						continue;
+					case 97: // custom rotation speed
+						customRotationSpeed = true;
+						newObjectStr += "97,69.000000,";
+						continue;
+					case 98: // turn off disable rotation
+						continue;
+					case 103: // turn off high detail
+						continue;
+					default:
+						newObjectStr += pair[0] + "," + pair[1] + ",";
+						continue;
+				}
+			}
+
+			if (!dontFade) newObjectStr += "64,1,";
+			if (!dontEnter) newObjectStr += "67,1,";
+			if (!customRotationSpeed) newObjectStr += "97,69.000000,";
+
+			if (!newObjectStr.empty()) {
+				newObjectStr.pop_back(); // Remove the last comma
+				objectStr = newObjectStr;
+			} else {
+				objectStr = "";
+			}
+
+			// log::info("Object after: {}", objectStr);
 		}
 
-		/**
-		 * You can use methods from the `geode::log` namespace to log messages to the console,
-		 * being useful for debugging and such. See this page for more info about logging:
-		 * https://docs.geode-sdk.org/tutorials/logging
-		*/
-		log::debug("Hello from my MenuLayer::init hook! This layer has {} children.", this->getChildrenCount());
+		std::string modifiedLevelString = firstElement + ";" + joinString(levelStringSplit, ";");
+		
+		FLAlertLayer::create(
+			"Level Comparison",
+			std::string("Successfully created layout of ") + level->m_levelName.c_str(),
+			"OK"
+		)->show();
 
-		/**
-		 * See this page for more info about buttons
-		 * https://docs.geode-sdk.org/tutorials/buttons
-		*/
-		auto myButton = CCMenuItemSpriteExtra::create(
-			CCSprite::createWithSpriteFrameName("GJ_likeBtn_001.png"),
-			this,
-			/**
-			 * Here we use the name we set earlier for our modify class.
-			*/
-			menu_selector(MyMenuLayer::onMyButton)
-		);
+		// log::info("{}", levelString);
+		// log::info("{}", modifiedLevelString);
 
-		/**
-		 * Here we access the `bottom-menu` node by its ID, and add our button to it.
-		 * Node IDs are a Geode feature, see this page for more info about it:
-		 * https://docs.geode-sdk.org/tutorials/nodetree
-		*/
-		auto menu = this->getChildByID("bottom-menu");
-		menu->addChild(myButton);
 
-		/**
-		 * The `_spr` string literal operator just prefixes the string with
-		 * your mod id followed by a slash. This is good practice for setting your own node ids.
-		*/
-		myButton->setID("my-button"_spr);
-
-		/**
-		 * We update the layout of the menu to ensure that our button is properly placed.
-		 * This is yet another Geode feature, see this page for more info about it:
-		 * https://docs.geode-sdk.org/tutorials/layouts
-		*/
-		menu->updateLayout();
-
-		/**
-		 * We return `true` to indicate that the class was properly initialized.
-		 */
-		return true;
-	}
-
-	/**
-	 * This is the callback function for the button we created earlier.
-	 * The signature for button callbacks must always be the same,
-	 * return type `void` and taking a `CCObject*`.
-	*/
-	void onMyButton(CCObject*) {
-		FLAlertLayer::create("Geode", "Hello from my custom mod!", "OK")->show();
-	}
+		// create new level
+        GJGameLevel* newLevel = gameLevelManager->createNewLevel();
+        newLevel->m_levelName = "Test " + level->m_levelName;
+        newLevel->m_levelString = modifiedLevelString;
+		newLevel->m_levelDesc = ZipUtils::base64URLEncode("Comparison of " + level->m_levelName);
+		newLevel->m_songID = level->m_songID;
+    }
 };
+
+std::vector<std::string> splitString(const std::string& s, const std::string& delimiter) {
+    std::vector<std::string> splitStrings;
+    size_t pos = 0, found;
+    while ((found = s.find(delimiter, pos)) != std::string::npos) {
+        if (found != pos) { // Avoid adding empty strings
+            splitStrings.push_back(s.substr(pos, found - pos));
+        }
+        pos = found + delimiter.length();
+    }
+    if (pos < s.size()) {
+        splitStrings.push_back(s.substr(pos));
+    }
+    return splitStrings;
+}
+
+std::string joinString(const std::vector<std::string>& elems, const std::string& delimiter) {
+    std::stringstream ss;
+    for (size_t i = 0; i < elems.size(); ++i) {
+        if (i != 0)
+            ss << delimiter;
+        ss << elems[i];
+    }
+    return ss.str();
+}
