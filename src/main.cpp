@@ -134,6 +134,8 @@ class $modify(MakeLevelLayoutLayer, LevelInfoLayer) {
 							continue;
 						case 103: // turn off high detail
 							continue;
+						case 135: // turn off hide
+							continue;
 						case 507: // no particle
 							noParticle = true;
 							newObjectStr += "507,1,";
