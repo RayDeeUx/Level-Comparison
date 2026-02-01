@@ -14,28 +14,36 @@ std::vector<std::string> splitString(const std::string& s, const std::string& de
 std::string joinString(const std::vector<std::string>& elems, const std::string& delimiter);
 
 class $modify(MakeLevelLayoutLayer, LevelInfoLayer) {
-    bool init(GJGameLevel* level, bool challenge) {
-        if (!LevelInfoLayer::init(level, challenge))
-            return false;
-        
-        auto menu = this->getChildByID("left-side-menu");
-        if (menu) {
-            auto btn = CCMenuItemSpriteExtra::create(
-                CCSprite::createWithSpriteFrameName("GJ_likeBtn_001.png"),
-                this, menu_selector(MakeLevelLayoutLayer::onButton)
-            );
-            btn->setID("export-button"_spr);
-            menu->addChild(btn);
-            menu->updateLayout();
-        }
+		bool init(GJGameLevel* level, bool challenge) {
+		if (!LevelInfoLayer::init(level, challenge))
+			return false;
 
-        return true;
-    }
+		auto menu = this->getChildByType<CCMenu>(0);
+		if (!menu) {
+			log::error("No CCMenu found");
+			return true;
+		}
+
+		auto btn = CCMenuItemSpriteExtra::create(
+			CCSprite::createWithSpriteFrameName("GJ_likeBtn_001.png"),
+			this,
+			menu_selector(MakeLevelLayoutLayer::onButton)
+		);
+
+		btn->setID("test-button"_spr);
+		menu->addChild(btn);
+		menu->updateLayout();
+
+		log::info("Button added to first CCMenu");
+
+		return true;
+	}
+
 
     void onButton(CCObject*) {
 		GameLevelManager *gameLevelManager = GameLevelManager::sharedState();
 		GJGameLevel *level1 = this->m_level; // nerfed
-		GJGameLevel *level2 = gameLevelManager->getSavedLevel(26681070); // buffed
+		GJGameLevel *level2 = gameLevelManager->getSavedLevel(56783585); // buffed
 
 		std::string modifiedLevelString = createComparison(level1, level2);
 		
