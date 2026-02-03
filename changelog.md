@@ -1,2 +1,8 @@
-# 1.0.0
-- Edit this file to change your mod's changelog.
+# 0.1.0
+- Beta release!
+Features:
+    - Compare levels using ID
+    - Toggle buffed/nerfed level
+    - Change saw rotation speed
+    - Map groups and triggers
+    - Visualize D-blocks etc.

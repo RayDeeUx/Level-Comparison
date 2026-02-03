@@ -4,14 +4,238 @@
 #include <algorithm>
 #include <Geode/Geode.hpp>
 #include <Geode/modify/LevelInfoLayer.hpp>
+#include <cocos2d.h>
+#include <cocos-ext.h>
+#include <functional>
 #include "objects.hpp"
+#include "data.hpp"
 
 
 using namespace geode::prelude;
+using namespace cocos2d;
+using namespace cocos2d::extension;
 
-std::string createComparison(GJGameLevel* level1, GJGameLevel* level2);
+std::string createComparison(GJGameLevel* level1, GJGameLevel* level2, const ComparisonConfig& config);
 std::vector<std::string> splitString(const std::string& s, const std::string& delimiter, bool skipEmpty);
 std::string joinString(const std::vector<std::string>& elems, const std::string& delimiter);
+
+class ComparisonMenu : public CCLayer, public TextInputDelegate {
+public:
+	std::function<void(
+		int targetLevelID,
+		bool isBuffed,
+		float sawRotationSpeed
+	)> onCreateCallback;
+
+    int targetLevelID = 0;
+    bool isBuffed = false;
+    float sawRotationSpeed = 0.f;
+
+    CCLabelBMFont* speedLabel = nullptr;
+    CCMenuItemToggle* buffedToggle = nullptr;
+    CCMenuItemToggle* nerfedToggle = nullptr;
+
+    static ComparisonMenu* create(std::function<void(int, bool, float)> onCreate) {
+		auto ret = new ComparisonMenu();
+		if (ret && ret->init()) {
+			ret->onCreateCallback = onCreate;
+			ret->autorelease();
+			return ret;
+		}
+		CC_SAFE_DELETE(ret);
+		return nullptr;
+	}
+
+
+    bool init() override {
+        if (!CCLayer::init()) return false;
+
+		this->setTouchEnabled(true);
+		this->setTouchMode(kCCTouchesOneByOne);
+		this->setKeypadEnabled(true);
+
+        auto winSize = CCDirector::sharedDirector()->getWinSize();
+
+        // === LOAD SAVED VALUES ===
+        auto mod = Mod::get();
+        targetLevelID = mod->getSavedValue<int>("target-level-id", 0);
+        isBuffed = mod->getSavedValue<bool>("is-buffed", false);
+        sawRotationSpeed = mod->getSavedValue<float>("saw-rotation-speed", 0.f);
+
+        // === BACKGROUND ===
+        auto bg = CCLayerColor::create(ccc4(255, 255, 255, 160));
+        this->addChild(bg, -1);
+
+        // === PANEL ===
+        auto panel = CCScale9Sprite::create("square02b_001.png");
+        panel->setContentSize({ 360.f, 260.f });
+        panel->setPosition(winSize / 2);
+        this->addChild(panel);
+
+        // === MENU ===
+        auto menu = CCMenu::create();
+        menu->setPosition({ 0, 0 });
+        panel->addChild(menu);
+
+        // === TITLE ===
+        auto title = CCLabelBMFont::create("Level Comparison", "bigFont.fnt");
+        title->setPosition({ 180.f, 230.f });
+		title->setScale(0.8f);
+        panel->addChild(title);
+
+        // === LEVEL ID INPUT ===
+        auto idLabel = CCLabelBMFont::create("LEVEL ID", "goldFont.fnt");
+        idLabel->setPosition({ 180.f, 195.f });
+        panel->addChild(idLabel);
+
+        auto idInput = CCTextInputNode::create(120.f, 40.f, "0", "bigFont.fnt");
+		idInput->setMaxLabelLength(10);
+		idInput->setAllowedChars("0123456789");
+		idInput->setAnchorPoint({0.5f, 0.5f});
+		idInput->setTouchEnabled(true);
+		idInput->setID("level-id-input"_spr);
+        idInput->setString(std::to_string(targetLevelID).c_str());
+        idInput->setDelegate(this);
+        panel->addChild(idInput);
+
+        // === BUFFED / NERFED TOGGLES ===
+        auto off = CCSprite::createWithSpriteFrameName("GJ_checkOff_001.png");
+        auto on = CCSprite::createWithSpriteFrameName("GJ_checkOn_001.png");
+
+        nerfedToggle = CCMenuItemToggle::createWithTarget(
+            this,
+            menu_selector(ComparisonMenu::onNerfed),
+            CCMenuItemSprite::create(off, off),
+            CCMenuItemSprite::create(on, on),
+            nullptr
+        );
+        nerfedToggle->setPosition({ 120.f, 120.f });
+        menu->addChild(nerfedToggle);
+
+        auto nerfedLabel = CCLabelBMFont::create("NERFED", "goldFont.fnt");
+        nerfedLabel->setPosition({ 180.f, 120.f });
+        panel->addChild(nerfedLabel);
+
+        buffedToggle = CCMenuItemToggle::createWithTarget(
+            this,
+            menu_selector(ComparisonMenu::onBuffed),
+            CCMenuItemSprite::create(off, off),
+            CCMenuItemSprite::create(on, on),
+            nullptr
+        );
+        buffedToggle->setPosition({ 240.f, 120.f });
+        menu->addChild(buffedToggle);
+
+        auto buffedLabel = CCLabelBMFont::create("BUFFED", "goldFont.fnt");
+        buffedLabel->setPosition({ 300.f, 120.f });
+        panel->addChild(buffedLabel);
+
+        // set initial toggle state
+        buffedToggle->setSelectedIndex(isBuffed ? 1 : 0);
+        nerfedToggle->setSelectedIndex(isBuffed ? 0 : 1);
+
+        // === SAW SPEED ===
+        auto speedText = CCLabelBMFont::create("SAW ROTATION", "goldFont.fnt");
+        speedText->setPosition({ 180.f, 85.f });
+        panel->addChild(speedText);
+
+        speedLabel = CCLabelBMFont::create(std::to_string((int)sawRotationSpeed).c_str(), "bigFont.fnt");
+        speedLabel->setPosition({ 180.f, 60.f });
+        panel->addChild(speedLabel);
+
+        auto slider = Slider::create(this, menu_selector(ComparisonMenu::onSlider));
+        slider->setPosition({ 180.f, 35.f });
+        slider->setScale(0.8f);
+        slider->setValue((sawRotationSpeed + 360.f) / 720.f);
+        panel->addChild(slider);
+
+        // === BUTTONS ===
+        auto abortBtn = CCMenuItemSpriteExtra::create(
+            ButtonSprite::create("Abort"),
+            this,
+            menu_selector(ComparisonMenu::onAbort)
+        );
+        abortBtn->setPosition({ 100.f, 15.f });
+        menu->addChild(abortBtn);
+
+        auto createBtn = CCMenuItemSpriteExtra::create(
+            ButtonSprite::create("Create"),
+            this,
+            menu_selector(ComparisonMenu::onCreate)
+        );
+        createBtn->setPosition({ 260.f, 15.f });
+        menu->addChild(createBtn);
+
+        log::info("Menu loaded | ID={} | Buffed={} | Speed={}", targetLevelID, isBuffed, sawRotationSpeed);
+        return true;
+    }
+
+    // === CALLBACKS ===
+
+    void onNerfed(CCObject*) {
+        isBuffed = false;
+        buffedToggle->setSelectedIndex(0);
+		nerfedToggle->setSelectedIndex(1);
+        log::info("Role set to NERFED");
+    }
+
+    void onBuffed(CCObject*) {
+        isBuffed = true;
+        nerfedToggle->setSelectedIndex(0);
+		buffedToggle->setSelectedIndex(1);
+        log::info("Role set to BUFFED");
+    }
+
+    void onSlider(CCObject* sender) {
+        auto slider = static_cast<Slider*>(sender);
+        sawRotationSpeed = slider->getValue() * 720.f - 360.f;
+        speedLabel->setString(std::to_string((int)sawRotationSpeed).c_str());
+        log::info("Saw rotation speed = {}", sawRotationSpeed);
+    }
+
+    void onAbort(CCObject*) {
+        this->removeFromParentAndCleanup(true);
+    }
+
+    void onCreate(CCObject*) {
+		auto mod = Mod::get();
+		mod->setSavedValue("target-level-id", targetLevelID);
+		mod->setSavedValue("is-buffed", isBuffed);
+		mod->setSavedValue("saw-rotation-speed", sawRotationSpeed);
+
+		log::info("CREATE pressed");
+		log::info("ID={} | Buffed={} | Speed={}",
+			targetLevelID, isBuffed, sawRotationSpeed);
+
+		if (onCreateCallback) {
+			onCreateCallback(
+				targetLevelID,
+				isBuffed,
+				sawRotationSpeed
+			);
+		}
+
+		this->removeFromParentAndCleanup(true);
+	}
+
+
+	void textChanged(CCTextInputNode* input) override {
+		auto text = input->getString();
+		if (!text.empty()) {
+			targetLevelID = std::stoi(text);
+		} else {
+			targetLevelID = 0;
+		}
+
+		log::info("Level ID changed -> {}", targetLevelID);
+	}
+
+	bool ccTouchBegan(CCTouch*, CCEvent*) override {
+		return false;
+	}
+};
+
+
 
 class $modify(MakeLevelLayoutLayer, LevelInfoLayer) {
 		bool init(GJGameLevel* level, bool challenge) {
@@ -41,41 +265,51 @@ class $modify(MakeLevelLayoutLayer, LevelInfoLayer) {
 
 
     void onButton(CCObject*) {
-		GameLevelManager *gameLevelManager = GameLevelManager::sharedState();
-		GJGameLevel *level1 = this->m_level; // nerfed
-		GJGameLevel *level2 = gameLevelManager->getSavedLevel(56783585); // buffed
+		auto scene = CCDirector::sharedDirector()->getRunningScene();
+		scene->addChild(
+			ComparisonMenu::create(
+				[this](int levelID, bool isBuffed, float sawSpeed) {
 
-		std::string modifiedLevelString = createComparison(level1, level2);
-		
-		FLAlertLayer::create(
-			"Level Comparison",
-			std::string("Successfully created layout of ") + level1->m_levelName.c_str(),
-			"OK"
-		)->show();
-		
+					GameLevelManager* glm = GameLevelManager::sharedState();
 
-		// //log::info("{}", levelString);
-		// //log::info("{}", modifiedLevelString);
+					GJGameLevel* level1 = this->m_level;
+					GJGameLevel* level2 = glm->getSavedLevel(132678721);
 
+					ComparisonConfig config;
+					config.isBuffed = isBuffed;
+					config.sawSpeed = sawSpeed;
 
-		// create new level
-        GJGameLevel* newLevel = gameLevelManager->createNewLevel();
-        newLevel->m_levelName = "Test " + level1->m_levelName;
-        newLevel->m_levelString = modifiedLevelString;
-		newLevel->m_levelDesc = ZipUtils::base64URLEncode("Comparison of " + level1->m_levelName + " and " + level2->m_levelName);
-		newLevel->m_songID = level1->m_songID;
+					std::string modifiedLevelString = createComparison(
+						level1,
+						level2,
+						config
+					);
+					FLAlertLayer::create(
+						"Level Comparison",
+						std::string("Successfully created layout of ") + level1->m_levelName.c_str(),
+						"OK"
+					)->show();
+					
+					GJGameLevel* newLevel = glm->createNewLevel();
+					newLevel->m_levelName = "Test " + level1->m_levelName;
+					newLevel->m_levelString = modifiedLevelString;
+					newLevel->m_levelDesc = ZipUtils::base64URLEncode("Comparison of " + level1->m_levelName + " and " + level2->m_levelName);
+					newLevel->m_songID = level1->m_songID;
+				}
+			),
+			999
+		);
     }
 };
 
-std::string createComparison(GJGameLevel* level1, GJGameLevel* level2) {
+std::string createComparison(GJGameLevel* level1, GJGameLevel* level2, const ComparisonConfig& config) {
 	std::vector<GJGameLevel*> levels = { level1, level2 };
-	int count = 0;
+	bool first = !config.isBuffed;
 	std::vector<std::string> levelStringSplit1, levelStringSplit2;
 	std::string firstElement;
 
 	for (GJGameLevel *level : levels) {
 		std::string levelString = ZipUtils::decompressString(level->m_levelString, false, 0);
-
 		std::vector<std::string> levelStringSplit = splitString(levelString, ";", true);
 		firstElement = levelStringSplit.front();
 		levelStringSplit.erase(levelStringSplit.begin());
@@ -90,6 +324,7 @@ std::string createComparison(GJGameLevel* level1, GJGameLevel* level2) {
 			bool dontEnter = false; // 67
 			bool noGlow = false;    // 96
 			bool customRotationSpeed = false; // 97
+			bool disableRotation = false; // 98
 			bool noParticle = false; // 507
 			std::string newObjectStr = "";
 
@@ -130,15 +365,15 @@ std::string createComparison(GJGameLevel* level1, GJGameLevel* level2) {
 				switch (propID) {
 					case 20: // editor layer 1
 						hasLayer1 = true;
-						count == 0 ? newObjectStr += "20,1," : newObjectStr += "20,2,";
+						first ? newObjectStr += "20,1," : newObjectStr += "20,2,";
 						continue;
 					case 21: // color 1
 						hasColor1 = true;
-						count == 0 ? newObjectStr += "21,1," : newObjectStr += "21,2,";
+						first ? newObjectStr += "21,1," : newObjectStr += "21,2,";
 						continue;
 					case 22: // color 2
 						hasColor2 = true;
-						count == 0 ? newObjectStr += "22,1," : newObjectStr += "22,2,";
+						first ? newObjectStr += "22,1," : newObjectStr += "22,2,";
 						continue;
 					case 43: // delete HSV 1
 						continue;
@@ -146,7 +381,7 @@ std::string createComparison(GJGameLevel* level1, GJGameLevel* level2) {
 						continue;
 					case 61: // editor layer 2
 						hasLayer2 = true;
-						count == 0 ? newObjectStr += "61,1," : newObjectStr += "61,2,";
+						first ? newObjectStr += "61,1," : newObjectStr += "61,2,";
 						continue;
 					case 64: // don't fade
 						dontFade = true;
@@ -162,9 +397,11 @@ std::string createComparison(GJGameLevel* level1, GJGameLevel* level2) {
 						continue;
 					case 97: // custom rotation speed
 						customRotationSpeed = true;
-						newObjectStr += "97,69.000000,";
+						if (config.sawSpeed != 0) newObjectStr += "97," + std::to_string(config.sawSpeed) + ".000000,";
 						continue;
 					case 98: // turn off disable rotation
+						disableRotation = true;
+						if (config.sawSpeed == 0) newObjectStr += "98,1,";
 						continue;
 					case 103: // turn off high detail
 						continue;
@@ -181,14 +418,15 @@ std::string createComparison(GJGameLevel* level1, GJGameLevel* level2) {
 			}
 
 
-			if (!hasLayer1) { count == 0 ? newObjectStr += "20,1," : newObjectStr += "20,2,"; }
-			if (!hasColor1) { count == 0 ? newObjectStr += "21,1," : newObjectStr += "21,2,"; }
-			if (!hasColor2) { count == 0 ? newObjectStr += "22,1," : newObjectStr += "22,2,"; }
-			if (!hasLayer2) { count == 0 ? newObjectStr += "61,1," : newObjectStr += "61,2,"; }
+			if (!hasLayer1) { first ? newObjectStr += "20,1," : newObjectStr += "20,2,"; }
+			if (!hasColor1) { first ? newObjectStr += "21,1," : newObjectStr += "21,2,"; }
+			if (!hasColor2) { first ? newObjectStr += "22,1," : newObjectStr += "22,2,"; }
+			if (!hasLayer2) { first ? newObjectStr += "61,1," : newObjectStr += "61,2,"; }
 			if (!dontFade) newObjectStr += "64,1,";
 			if (!dontEnter) newObjectStr += "67,1,";
 			if (!noGlow) newObjectStr += "96,1,";
-			if (!customRotationSpeed) newObjectStr += "97,69.000000,";
+			if (!customRotationSpeed) { if (config.sawSpeed != 0) newObjectStr += "97," + std::to_string(config.sawSpeed) + ".000000,"; }
+			if (!disableRotation) { if (config.sawSpeed == 0) newObjectStr += "98,1,"; }
 			if (!noParticle) newObjectStr += "507,1,";
 
 			if (!newObjectStr.empty()) {
@@ -201,8 +439,8 @@ std::string createComparison(GJGameLevel* level1, GJGameLevel* level2) {
 			//log::info("Object after: {}", objectStr);
 		}
 
-		count == 0 ? levelStringSplit1 = levelStringSplit : levelStringSplit2 = levelStringSplit;
-		count++;
+		first ? levelStringSplit1 = levelStringSplit : levelStringSplit2 = levelStringSplit;
+		first = !first;
 	}
 
 	std::vector<std::string> firstElementSplit = splitString(firstElement, ",", false);
