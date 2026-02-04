@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <Geode/Geode.hpp>
 #include <Geode/modify/LevelInfoLayer.hpp>
+#include <Geode/ui/TextInput.hpp>
 #include <cocos2d.h>
 #include <cocos-ext.h>
 #include <functional>
@@ -34,6 +35,9 @@ public:
     CCLabelBMFont* speedLabel = nullptr;
     CCMenuItemToggle* buffedToggle = nullptr;
     CCMenuItemToggle* nerfedToggle = nullptr;
+	CCTextInputNode* levelIDNode = nullptr;
+	CCTextInputNode* sawSpeedNode = nullptr;
+
 
     static ComparisonMenu* create(std::function<void(int, bool, float)> onCreate) {
 		auto ret = new ComparisonMenu();
@@ -56,49 +60,49 @@ public:
 
         auto winSize = CCDirector::sharedDirector()->getWinSize();
 
-        // === LOAD SAVED VALUES ===
         auto mod = Mod::get();
         targetLevelID = mod->getSavedValue<int>("target-level-id", 0);
         isBuffed = mod->getSavedValue<bool>("is-buffed", false);
         sawRotationSpeed = mod->getSavedValue<float>("saw-rotation-speed", 0.f);
 
-        // === BACKGROUND ===
-        auto bg = CCLayerColor::create(ccc4(255, 255, 255, 160));
+        auto bg = CCLayerColor::create(ccc4(0, 0, 0, 127));
+		bg->setMouseEnabled(false);
         this->addChild(bg, -1);
 
-        // === PANEL ===
         auto panel = CCScale9Sprite::create("square02b_001.png");
         panel->setContentSize({ 360.f, 260.f });
         panel->setPosition(winSize / 2);
+		panel->setColor({ 127, 127, 127 });
         this->addChild(panel);
 
-        // === MENU ===
         auto menu = CCMenu::create();
         menu->setPosition({ 0, 0 });
         panel->addChild(menu);
 
-        // === TITLE ===
         auto title = CCLabelBMFont::create("Level Comparison", "bigFont.fnt");
         title->setPosition({ 180.f, 230.f });
 		title->setScale(0.8f);
         panel->addChild(title);
 
-        // === LEVEL ID INPUT ===
-        auto idLabel = CCLabelBMFont::create("LEVEL ID", "goldFont.fnt");
-        idLabel->setPosition({ 180.f, 195.f });
+        // level id input
+        auto idLabel = CCLabelBMFont::create("Level ID", "goldFont.fnt");
+        idLabel->setPosition({ 180.f, 200.f });
         panel->addChild(idLabel);
 
-        auto idInput = CCTextInputNode::create(120.f, 40.f, "0", "bigFont.fnt");
-		idInput->setMaxLabelLength(10);
-		idInput->setAllowedChars("0123456789");
-		idInput->setAnchorPoint({0.5f, 0.5f});
-		idInput->setTouchEnabled(true);
+        auto idInput = TextInput::create(120.f, "0", "bigFont.fnt");
+		idInput->setMaxCharCount(10);
+		idInput->setFilter("0123456789");
+		idInput->setPosition({ 180.f, 170.f });
+		idInput->setEnabled(true);
 		idInput->setID("level-id-input"_spr);
         idInput->setString(std::to_string(targetLevelID).c_str());
         idInput->setDelegate(this);
         panel->addChild(idInput);
+		
+		levelIDNode = idInput->getInputNode();
+		levelIDNode->setDelegate(this);
 
-        // === BUFFED / NERFED TOGGLES ===
+        // buffed / nerfed toggles
         auto off = CCSprite::createWithSpriteFrameName("GJ_checkOff_001.png");
         auto on = CCSprite::createWithSpriteFrameName("GJ_checkOn_001.png");
 
@@ -109,11 +113,11 @@ public:
             CCMenuItemSprite::create(on, on),
             nullptr
         );
-        nerfedToggle->setPosition({ 120.f, 120.f });
+        nerfedToggle->setPosition({ 80.f, 130.f });
         menu->addChild(nerfedToggle);
 
-        auto nerfedLabel = CCLabelBMFont::create("NERFED", "goldFont.fnt");
-        nerfedLabel->setPosition({ 180.f, 120.f });
+        auto nerfedLabel = CCLabelBMFont::create("Nerfed", "goldFont.fnt");
+        nerfedLabel->setPosition({ 150.f, 130.f });
         panel->addChild(nerfedLabel);
 
         buffedToggle = CCMenuItemToggle::createWithTarget(
@@ -123,39 +127,46 @@ public:
             CCMenuItemSprite::create(on, on),
             nullptr
         );
-        buffedToggle->setPosition({ 240.f, 120.f });
+        buffedToggle->setPosition({ 210.f, 130.f });
         menu->addChild(buffedToggle);
 
-        auto buffedLabel = CCLabelBMFont::create("BUFFED", "goldFont.fnt");
-        buffedLabel->setPosition({ 300.f, 120.f });
+        auto buffedLabel = CCLabelBMFont::create("Buffed", "goldFont.fnt");
+        buffedLabel->setPosition({ 280.f, 130.f });
         panel->addChild(buffedLabel);
+
+		auto nerfedBuffedInfo = InfoAlertButton::create("Info", "Select whether current selected level is the nerfed (blue) or buffed (red) version.", 0.5f);
+		nerfedBuffedInfo->setPosition({ 350.f, 150.f });
+		this->addChild(nerfedBuffedInfo);
 
         // set initial toggle state
         buffedToggle->setSelectedIndex(isBuffed ? 1 : 0);
         nerfedToggle->setSelectedIndex(isBuffed ? 0 : 1);
 
-        // === SAW SPEED ===
-        auto speedText = CCLabelBMFont::create("SAW ROTATION", "goldFont.fnt");
-        speedText->setPosition({ 180.f, 85.f });
+        // saw speed
+        auto speedText = CCLabelBMFont::create("Saw Rotation", "goldFont.fnt");
+        speedText->setPosition({ 180.f, 90.f });
         panel->addChild(speedText);
 
-        speedLabel = CCLabelBMFont::create(std::to_string((int)sawRotationSpeed).c_str(), "bigFont.fnt");
-        speedLabel->setPosition({ 180.f, 60.f });
-        panel->addChild(speedLabel);
+        auto sawSpeedInput = TextInput::create(120.f, "0", "bigFont.fnt");
+		sawSpeedInput->setMaxCharCount(5);
+		sawSpeedInput->setFilter("0123456789");
+		sawSpeedInput->setPosition({180.f, 60.f});
+		sawSpeedInput->setEnabled(true);
+		sawSpeedInput->setID("saw-speed-input"_spr);
+        sawSpeedInput->setString(std::to_string(static_cast<int>(sawRotationSpeed)).c_str());
+        sawSpeedInput->setDelegate(this);
+        panel->addChild(sawSpeedInput);
+	
+		sawSpeedNode = sawSpeedInput->getInputNode();
+		sawSpeedNode->setDelegate(this);
 
-        auto slider = Slider::create(this, menu_selector(ComparisonMenu::onSlider));
-        slider->setPosition({ 180.f, 35.f });
-        slider->setScale(0.8f);
-        slider->setValue((sawRotationSpeed + 360.f) / 720.f);
-        panel->addChild(slider);
-
-        // === BUTTONS ===
+        // buttons
         auto abortBtn = CCMenuItemSpriteExtra::create(
             ButtonSprite::create("Abort"),
             this,
             menu_selector(ComparisonMenu::onAbort)
         );
-        abortBtn->setPosition({ 100.f, 15.f });
+        abortBtn->setPosition({ 100.f, 20.f });
         menu->addChild(abortBtn);
 
         auto createBtn = CCMenuItemSpriteExtra::create(
@@ -163,15 +174,14 @@ public:
             this,
             menu_selector(ComparisonMenu::onCreate)
         );
-        createBtn->setPosition({ 260.f, 15.f });
+        createBtn->setPosition({ 260.f, 20.f });
         menu->addChild(createBtn);
 
         log::info("Menu loaded | ID={} | Buffed={} | Speed={}", targetLevelID, isBuffed, sawRotationSpeed);
         return true;
     }
 
-    // === CALLBACKS ===
-
+    // callbacks
     void onNerfed(CCObject*) {
         isBuffed = false;
         buffedToggle->setSelectedIndex(0);
@@ -186,16 +196,13 @@ public:
         log::info("Role set to BUFFED");
     }
 
-    void onSlider(CCObject* sender) {
-        auto slider = static_cast<Slider*>(sender);
-        sawRotationSpeed = slider->getValue() * 720.f - 360.f;
-        speedLabel->setString(std::to_string((int)sawRotationSpeed).c_str());
-        log::info("Saw rotation speed = {}", sawRotationSpeed);
-    }
-
     void onAbort(CCObject*) {
         this->removeFromParentAndCleanup(true);
     }
+
+	void keyBackClicked() override {
+		onAbort(nullptr);
+	}
 
     void onCreate(CCObject*) {
 		auto mod = Mod::get();
@@ -220,18 +227,17 @@ public:
 
 
 	void textChanged(CCTextInputNode* input) override {
-		auto text = input->getString();
-		if (!text.empty()) {
-			targetLevelID = std::stoi(text);
-		} else {
-			targetLevelID = 0;
+		std::string text = input->getString();
+		int value = text.empty() ? 0 : std::stoi(text);
+
+		if (input == levelIDNode) {
+			targetLevelID = value;
+			log::info("Level ID changed -> {}", targetLevelID);
 		}
-
-		log::info("Level ID changed -> {}", targetLevelID);
-	}
-
-	bool ccTouchBegan(CCTouch*, CCEvent*) override {
-		return false;
+		else if (input == sawSpeedNode) {
+			sawRotationSpeed = static_cast<float>(value);
+			log::info("Saw speed changed -> {}", sawRotationSpeed);
+		}
 	}
 };
 
@@ -273,7 +279,7 @@ class $modify(MakeLevelLayoutLayer, LevelInfoLayer) {
 					GameLevelManager* glm = GameLevelManager::sharedState();
 
 					GJGameLevel* level1 = this->m_level;
-					GJGameLevel* level2 = glm->getSavedLevel(132678721);
+					GJGameLevel* level2 = glm->getSavedLevel(levelID);
 
 					ComparisonConfig config;
 					config.isBuffed = isBuffed;
