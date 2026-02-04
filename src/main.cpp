@@ -80,19 +80,20 @@ public:
         panel->addChild(menu);
 
         auto title = CCLabelBMFont::create("Level Comparison", "bigFont.fnt");
-        title->setPosition({ 180.f, 230.f });
+        title->setPosition({ 180.f, 240.f });
 		title->setScale(0.8f);
         panel->addChild(title);
 
         // level id input
         auto idLabel = CCLabelBMFont::create("Level ID", "goldFont.fnt");
-        idLabel->setPosition({ 180.f, 200.f });
+        idLabel->setPosition({ 80.f, 215.f });
+		idLabel->setScale(0.8);
         panel->addChild(idLabel);
 
         auto idInput = TextInput::create(120.f, "0", "bigFont.fnt");
 		idInput->setMaxCharCount(10);
 		idInput->setFilter("0123456789");
-		idInput->setPosition({ 180.f, 170.f });
+		idInput->setPosition({ 80.f, 185.f });
 		idInput->setEnabled(true);
 		idInput->setID("level-id-input"_spr);
         idInput->setString(std::to_string(targetLevelID).c_str());
@@ -113,11 +114,13 @@ public:
             CCMenuItemSprite::create(on, on),
             nullptr
         );
-        nerfedToggle->setPosition({ 80.f, 130.f });
+        nerfedToggle->setPosition({ 160.f, 190.f });
+		nerfedToggle->setScale(0.8);
         menu->addChild(nerfedToggle);
 
         auto nerfedLabel = CCLabelBMFont::create("Nerfed", "goldFont.fnt");
-        nerfedLabel->setPosition({ 150.f, 130.f });
+        nerfedLabel->setPosition({ 210.f, 190.f });
+		nerfedLabel->setScale(0.8);
         panel->addChild(nerfedLabel);
 
         buffedToggle = CCMenuItemToggle::createWithTarget(
@@ -127,16 +130,18 @@ public:
             CCMenuItemSprite::create(on, on),
             nullptr
         );
-        buffedToggle->setPosition({ 210.f, 130.f });
+        buffedToggle->setPosition({ 270.f, 190.f });
+		buffedToggle->setScale(0.8);
         menu->addChild(buffedToggle);
 
         auto buffedLabel = CCLabelBMFont::create("Buffed", "goldFont.fnt");
-        buffedLabel->setPosition({ 280.f, 130.f });
+        buffedLabel->setPosition({ 320.f, 190.f });
+		buffedLabel->setScale(0.8);
         panel->addChild(buffedLabel);
 
 		auto nerfedBuffedInfo = InfoAlertButton::create("Info", "Select whether current selected level is the nerfed (blue) or buffed (red) version.", 0.5f);
-		nerfedBuffedInfo->setPosition({ 350.f, 150.f });
-		this->addChild(nerfedBuffedInfo);
+		nerfedBuffedInfo->setPosition({ 350.f, 205.f });
+		panel->addChild(nerfedBuffedInfo);
 
         // set initial toggle state
         buffedToggle->setSelectedIndex(isBuffed ? 1 : 0);
@@ -144,13 +149,14 @@ public:
 
         // saw speed
         auto speedText = CCLabelBMFont::create("Saw Rotation", "goldFont.fnt");
-        speedText->setPosition({ 180.f, 90.f });
+        speedText->setPosition({ 80.f, 155.f });
+		speedText->setScale(0.8);
         panel->addChild(speedText);
 
-        auto sawSpeedInput = TextInput::create(120.f, "0", "bigFont.fnt");
-		sawSpeedInput->setMaxCharCount(5);
+        auto sawSpeedInput = TextInput::create(80.f, "0", "bigFont.fnt");
+		sawSpeedInput->setMaxCharCount(3);
 		sawSpeedInput->setFilter("0123456789");
-		sawSpeedInput->setPosition({180.f, 60.f});
+		sawSpeedInput->setPosition({80.f, 125.f});
 		sawSpeedInput->setEnabled(true);
 		sawSpeedInput->setID("saw-speed-input"_spr);
         sawSpeedInput->setString(std::to_string(static_cast<int>(sawRotationSpeed)).c_str());
