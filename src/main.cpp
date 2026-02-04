@@ -33,8 +33,8 @@ public:
     float sawRotationSpeed = 0.f;
 
     CCLabelBMFont* speedLabel = nullptr;
-    CCMenuItemToggle* buffedToggle = nullptr;
-    CCMenuItemToggle* nerfedToggle = nullptr;
+    CCMenuItemToggler* buffedToggle = nullptr;
+    CCMenuItemToggler* nerfedToggle = nullptr;
 	CCTextInputNode* levelIDNode = nullptr;
 	CCTextInputNode* sawSpeedNode = nullptr;
 
@@ -107,15 +107,12 @@ public:
         auto off = CCSprite::createWithSpriteFrameName("GJ_checkOff_001.png");
         auto on = CCSprite::createWithSpriteFrameName("GJ_checkOn_001.png");
 
-        nerfedToggle = CCMenuItemToggle::createWithTarget(
-            this,
-            menu_selector(ComparisonMenu::onNerfed),
-            CCMenuItemSprite::create(off, off),
-            CCMenuItemSprite::create(on, on),
-            nullptr
-        );
+        nerfedToggle = CCMenuItemToggler::createWithStandardSprites(
+			this,
+			menu_selector(ComparisonMenu::onNerfed),
+			0.8f
+		);
         nerfedToggle->setPosition({ 160.f, 190.f });
-		nerfedToggle->setScale(0.8);
         menu->addChild(nerfedToggle);
 
         auto nerfedLabel = CCLabelBMFont::create("Nerfed", "goldFont.fnt");
@@ -123,15 +120,12 @@ public:
 		nerfedLabel->setScale(0.8);
         panel->addChild(nerfedLabel);
 
-        buffedToggle = CCMenuItemToggle::createWithTarget(
-            this,
-            menu_selector(ComparisonMenu::onBuffed),
-            CCMenuItemSprite::create(off, off),
-            CCMenuItemSprite::create(on, on),
-            nullptr
-        );
+        buffedToggle = CCMenuItemToggler::createWithStandardSprites(
+			this,
+			menu_selector(ComparisonMenu::onBuffed),
+			0.8f
+		);
         buffedToggle->setPosition({ 270.f, 190.f });
-		buffedToggle->setScale(0.8);
         menu->addChild(buffedToggle);
 
         auto buffedLabel = CCLabelBMFont::create("Buffed", "goldFont.fnt");
@@ -144,8 +138,11 @@ public:
 		panel->addChild(nerfedBuffedInfo);
 
         // set initial toggle state
-        buffedToggle->setSelectedIndex(isBuffed ? 1 : 0);
-        nerfedToggle->setSelectedIndex(isBuffed ? 0 : 1);
+        buffedToggle->toggle(isBuffed);
+        nerfedToggle->toggle(!isBuffed);
+		buffedToggle->setClickable(false);
+		nerfedToggle->setClickable(false);
+
 
         // saw speed
         auto speedText = CCLabelBMFont::create("Saw Rotation", "goldFont.fnt");
@@ -188,19 +185,26 @@ public:
     }
 
     // callbacks
-    void onNerfed(CCObject*) {
-        isBuffed = false;
-        buffedToggle->setSelectedIndex(0);
-		nerfedToggle->setSelectedIndex(1);
-        log::info("Role set to NERFED");
-    }
+	void onBuffed(CCObject*) {
+		if (isBuffed) return;
 
-    void onBuffed(CCObject*) {
-        isBuffed = true;
-        nerfedToggle->setSelectedIndex(0);
-		buffedToggle->setSelectedIndex(1);
-        log::info("Role set to BUFFED");
-    }
+		isBuffed = true;
+		buffedToggle->toggle(true);
+		nerfedToggle->toggle(false);
+
+		log::info("Role set to BUFFED");
+	}
+
+	void onNerfed(CCObject*) {
+		if (!isBuffed) return;
+
+		isBuffed = false;
+		buffedToggle->toggle(false);
+		nerfedToggle->toggle(true);
+
+		log::info("Role set to NERFED");
+	}
+
 
     void onAbort(CCObject*) {
         this->removeFromParentAndCleanup(true);
