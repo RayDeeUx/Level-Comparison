@@ -6,9 +6,18 @@
 		"mac": "2.2081",
 		"ios": "2.2081"
 	},
-	"id": "fullsound.level_comparison",
+	"id": "fullsound.level-comparison",
 	"name": "Level Comparison",
 	"version": "v0.1.0",
 	"developer": "FullSound",
-	"description": "Level Comparison"
+	"description": "Tool for automatic level comparison creating",
+	"tags": ["offline", "editor", "utility"],
+	"issues": {
+		"info": "Issues",
+		"url": "https://github.com/einXYZ/Level-Comparison/issues"
+	},
+	"links": {
+		"source": "https://github.com/einXYZ/Level-Comparison",
+		"community": "https://discord.com/users/470965127231832064"
+	}
 }

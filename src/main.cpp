@@ -53,11 +53,6 @@ public:
 
     bool init() override {
         if (!CCLayer::init()) return false;
-
-		this->setTouchEnabled(true);
-		this->setTouchMode(kCCTouchesOneByOne);
-		this->setKeypadEnabled(true);
-
         auto winSize = CCDirector::sharedDirector()->getWinSize();
 
         auto mod = Mod::get();
@@ -65,8 +60,7 @@ public:
         isBuffed = mod->getSavedValue<bool>("is-buffed", false);
         sawRotationSpeed = mod->getSavedValue<float>("saw-rotation-speed", 0.f);
 
-        auto bg = CCLayerColor::create(ccc4(0, 0, 0, 127));
-		bg->setMouseEnabled(false);
+        auto bg = CCLayerColor::create(ccc4(0, 0, 0, 100));
         this->addChild(bg, -1);
 
         auto panel = CCScale9Sprite::create("square02b_001.png");
@@ -132,6 +126,7 @@ public:
         buffedLabel->setPosition({ 320.f, 190.f });
 		buffedLabel->setScale(0.8);
         panel->addChild(buffedLabel);
+
 
 		auto nerfedBuffedInfo = InfoAlertButton::create("Info", "Select whether current selected level is the nerfed (blue) or buffed (red) version.", 0.5f);
 		nerfedBuffedInfo->setPosition({ 350.f, 205.f });
@@ -302,14 +297,16 @@ class $modify(MakeLevelLayoutLayer, LevelInfoLayer) {
 					);
 					FLAlertLayer::create(
 						"Level Comparison",
-						std::string("Successfully created layout of ") + level1->m_levelName.c_str(),
+						std::string("Created comparison of ") + level1->m_levelName.c_str() + std::string(" and ") + level2->m_levelName.c_str(),
 						"OK"
 					)->show();
 					
 					GJGameLevel* newLevel = glm->createNewLevel();
 					newLevel->m_levelName = "Test " + level1->m_levelName;
 					newLevel->m_levelString = modifiedLevelString;
-					newLevel->m_levelDesc = ZipUtils::base64URLEncode("Comparison of " + level1->m_levelName + " and " + level2->m_levelName);
+					newLevel->m_levelDesc = ZipUtils::base64URLEncode(
+						"Comparison of " + level1->m_levelName + " by " + level1->m_creatorName + " " + (config.isBuffed ? "(red)" : "(blue)") + " and " +
+						level2->m_levelName + " by " + level2->m_creatorName + " " + (!config.isBuffed ? "(red)" : "(blue)"));
 					newLevel->m_songID = level1->m_songID;
 				}
 			),
