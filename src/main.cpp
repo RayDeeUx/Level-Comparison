@@ -222,7 +222,7 @@ public:
 		GameLevelManager* glm = GameLevelManager::sharedState();
 		GJGameLevel* targetLevel = glm->getSavedLevel(targetLevelID);
 
-		if (targetLevel == nullptr || targetLevel->m_levelNotDownloaded) {
+		if (targetLevel == nullptr || targetLevel->m_levelNotDownloaded || targetLevel->m_levelString.empty()) {
 			glm->downloadLevel(targetLevelID, false, 0);
 			FLAlertLayer::create(
 				"Target level not found",
