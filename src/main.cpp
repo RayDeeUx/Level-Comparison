@@ -219,6 +219,19 @@ public:
 		log::info("ID={} | Buffed={} | Speed={}",
 			targetLevelID, isBuffed, sawRotationSpeed);
 
+		GameLevelManager* glm = GameLevelManager::sharedState();
+		GJGameLevel* targetLevel = glm->getSavedLevel(targetLevelID);
+
+		if (targetLevel == nullptr || targetLevel->m_levelNotDownloaded) {
+			glm->downloadLevel(targetLevelID, false, 0);
+			FLAlertLayer::create(
+				"Target level not found",
+				std::string("Try again, check the Level ID or your connection."),
+				"OK"
+			)->show();
+			return;
+		}
+
 		if (onCreateCallback) {
 			onCreateCallback(
 				targetLevelID,
