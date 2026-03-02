@@ -20,7 +20,7 @@ std::string createComparison(GJGameLevel* level1, GJGameLevel* level2, const Com
 std::vector<std::string> splitString(const std::string& s, const std::string& delimiter, bool skipEmpty);
 std::string joinString(const std::vector<std::string>& elems, const std::string& delimiter);
 
-class ComparisonMenu : public CCLayer, public TextInputDelegate {
+class ComparisonMenu : public FLAlertLayer, public TextInputDelegate {
 public:
 	std::function<void(
 		int targetLevelID,
@@ -52,7 +52,9 @@ public:
 
 
     bool init() override {
-        if (!CCLayer::init()) return false;
+        if (!FLAlertLayer::init(75)) return false;
+		this->setTouchEnabled(true);
+		this->setKeypadEnabled(true);
         auto winSize = CCDirector::sharedDirector()->getWinSize();
 
         auto mod = Mod::get();
@@ -60,14 +62,11 @@ public:
         isBuffed = mod->getSavedValue<bool>("is-buffed", false);
         sawRotationSpeed = mod->getSavedValue<float>("saw-rotation-speed", 0.f);
 
-        auto bg = CCLayerColor::create(ccc4(0, 0, 0, 100));
-        this->addChild(bg, -1);
-
-        auto panel = CCScale9Sprite::create("square02b_001.png");
+        auto panel = CCScale9Sprite::create("GJ_square05.png", {0.0f, 0.0f, 80.0f, 80.0f});
         panel->setContentSize({ 360.f, 260.f });
         panel->setPosition(winSize / 2);
-		panel->setColor({ 127, 127, 127 });
-        this->addChild(panel);
+		panel->setID("create-comparison-background"_spr);
+        this->m_mainLayer->addChild(panel);
 
         auto menu = CCMenu::create();
         menu->setPosition({ 0, 0 });
@@ -96,10 +95,6 @@ public:
 		
 		levelIDNode = idInput->getInputNode();
 		levelIDNode->setDelegate(this);
-
-        // buffed / nerfed toggles
-        auto off = CCSprite::createWithSpriteFrameName("GJ_checkOff_001.png");
-        auto on = CCSprite::createWithSpriteFrameName("GJ_checkOn_001.png");
 
         nerfedToggle = CCMenuItemToggler::createWithStandardSprites(
 			this,
@@ -130,6 +125,7 @@ public:
 
 		auto nerfedBuffedInfo = InfoAlertButton::create("Info", "Select whether current selected level is the nerfed (blue) or buffed (red) version.", 0.5f);
 		nerfedBuffedInfo->setPosition({ 350.f, 205.f });
+		nerfedBuffedInfo->useAnimationType(MenuAnimationType::Scale);
 		panel->addChild(nerfedBuffedInfo);
 
         // set initial toggle state
@@ -266,19 +262,24 @@ class $modify(MakeLevelLayoutLayer, LevelInfoLayer) {
 		if (!LevelInfoLayer::init(level, challenge))
 			return false;
 
-		auto menu = this->getChildByType<CCMenu>(0);
+		auto menu = this->getChildByID("left-side-menu");
+		log::info("{}", this->getChildren());
 		if (!menu) {
 			log::error("No CCMenu found");
 			return true;
 		}
 
 		auto btn = CCMenuItemSpriteExtra::create(
-			CCSprite::createWithSpriteFrameName("GJ_likeBtn_001.png"),
+			CircleButtonSprite::createWithSpriteFrameName(
+				"create.png"_spr, .8f,
+				CircleBaseColor::Green,
+				CircleBaseSize::MediumAlt
+			),
 			this,
 			menu_selector(MakeLevelLayoutLayer::onButton)
 		);
 
-		btn->setID("test-button"_spr);
+		btn->setID("create-button"_spr);
 		menu->addChild(btn);
 		menu->updateLayout();
 
@@ -290,41 +291,38 @@ class $modify(MakeLevelLayoutLayer, LevelInfoLayer) {
 
     void onButton(CCObject*) {
 		auto scene = CCDirector::sharedDirector()->getRunningScene();
-		scene->addChild(
-			ComparisonMenu::create(
-				[this](int levelID, bool isBuffed, float sawSpeed) {
+		ComparisonMenu::create(
+			[this](int levelID, bool isBuffed, float sawSpeed) {
 
-					GameLevelManager* glm = GameLevelManager::sharedState();
+				GameLevelManager* glm = GameLevelManager::sharedState();
 
-					GJGameLevel* level1 = this->m_level;
-					GJGameLevel* level2 = glm->getSavedLevel(levelID);
+				GJGameLevel* level1 = this->m_level;
+				GJGameLevel* level2 = glm->getSavedLevel(levelID);
 
-					ComparisonConfig config;
-					config.isBuffed = isBuffed;
-					config.sawSpeed = sawSpeed;
+				ComparisonConfig config;
+				config.isBuffed = isBuffed;
+				config.sawSpeed = sawSpeed;
 
-					std::string modifiedLevelString = createComparison(
-						level1,
-						level2,
-						config
-					);
-					FLAlertLayer::create(
-						"Level Comparison",
-						std::string("Created comparison of ") + level1->m_levelName.c_str() + std::string(" and ") + level2->m_levelName.c_str(),
-						"OK"
-					)->show();
-					
-					GJGameLevel* newLevel = glm->createNewLevel();
-					newLevel->m_levelName = "Test " + level1->m_levelName;
-					newLevel->m_levelString = modifiedLevelString;
-					newLevel->m_levelDesc = ZipUtils::base64URLEncode(
-						"Comparison of " + level1->m_levelName + " by " + level1->m_creatorName + " " + (config.isBuffed ? "(red)" : "(blue)") + " and " +
-						level2->m_levelName + " by " + level2->m_creatorName + " " + (!config.isBuffed ? "(red)" : "(blue)"));
-					newLevel->m_songID = level1->m_songID;
-				}
-			),
-			999
-		);
+				std::string modifiedLevelString = createComparison(
+					level1,
+					level2,
+					config
+				);
+				FLAlertLayer::create(
+					"Level Comparison",
+					std::string("Created comparison of ") + level1->m_levelName.c_str() + std::string(" and ") + level2->m_levelName.c_str(),
+					"OK"
+				)->show();
+				
+				GJGameLevel* newLevel = glm->createNewLevel();
+				newLevel->m_levelName = "Unnamed comparison";
+				newLevel->m_levelString = modifiedLevelString;
+				newLevel->m_levelDesc = ZipUtils::base64URLEncode(
+					"Comparison of " + level1->m_levelName + " by " + level1->m_creatorName + " " + (config.isBuffed ? "(red)" : "(blue)") + " and " +
+					level2->m_levelName + " by " + level2->m_creatorName + " " + (!config.isBuffed ? "(red)" : "(blue)"));
+				newLevel->m_songID = level1->m_songID;
+			}
+		)->show();
     }
 };
 
