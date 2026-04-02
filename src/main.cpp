@@ -351,16 +351,24 @@ class $modify(MakeLevelLayoutLayer, LevelInfoLayer) {
 				);
 				FLAlertLayer::create(
 					"Level Comparison",
-					std::string("Created comparison of ") + level1->m_levelName.c_str() + std::string(" and ") + level2->m_levelName.c_str(),
+					fmt::format("Created comparison of {} and {}",
+						level1->m_levelName.c_str(),
+						level2->m_levelName.c_str()),
 					"OK"
 				)->show();
 				
 				GJGameLevel* newLevel = glm->createNewLevel();
 				newLevel->m_levelName = "Unnamed comparison";
 				newLevel->m_levelString = modifiedLevelString;
-				newLevel->m_levelDesc = ZipUtils::base64URLEncode(
-					"Comparison of " + level1->m_levelName + " by " + level1->m_creatorName + " " + (config.isBuffed ? "(red)" : "(blue)") + " and " +
-					level2->m_levelName + " by " + level2->m_creatorName + " " + (!config.isBuffed ? "(red)" : "(blue)"));
+				newLevel->m_levelDesc = ZipUtils::base64URLEncode(fmt::format(
+					"Comparison of {} by {} {} and {} by {} {}",
+					level1->m_levelName.c_str(),
+					level1->m_creatorName.c_str(),
+					config.isBuffed ? "(red)" : "(blue)",
+					level2->m_levelName.c_str(),
+					level2->m_creatorName.c_str(),
+					!config.isBuffed ? "(red)" : "(blue)"
+				));
 				newLevel->m_songID = level1->m_songID;
 			}
 		)->show();
@@ -395,7 +403,7 @@ std::string createComparison(GJGameLevel* level1, GJGameLevel* level2, const Com
 
 			std::vector<std::string> splitStrings = splitString(objectStr, ",", true);
 			std::vector<std::vector<std::string>> splitStringsPairs;
-			for (int i = 0; i < splitStrings.size() - 1; i += 2) {
+			for (int i = 0; i < static_cast<int>(splitStrings.size()) - 1; i += 2) {
 				splitStringsPairs.push_back({ splitStrings[i], splitStrings[i + 1] });
 			}
 
@@ -510,7 +518,7 @@ std::string createComparison(GJGameLevel* level1, GJGameLevel* level2, const Com
 
 	std::vector<std::string> firstElementSplit = splitString(firstElement, ",", false);
 	std::vector<std::vector<std::string>> firstElementPairs;
-	for (int i = 0; i < firstElementSplit.size() - 1; i += 2) {
+	for (int i = 0; i < static_cast<int>(firstElementSplit.size()) - 1; i += 2) {
 		firstElementPairs.push_back({ firstElementSplit[i], firstElementSplit[i + 1] });
 	}
 	// log::info("{}", firstElement);
