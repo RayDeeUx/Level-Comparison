@@ -35,6 +35,7 @@ public:
     CCLabelBMFont* speedLabel = nullptr;
     CCMenuItemToggler* buffedToggle = nullptr;
     CCMenuItemToggler* nerfedToggle = nullptr;
+	CCMenuItemToggler* remapToggle = nullptr;
 	CCTextInputNode* levelIDNode = nullptr;
 	CCTextInputNode* sawSpeedNode = nullptr;
 
@@ -62,7 +63,7 @@ public:
         isBuffed = mod->getSavedValue<bool>("is-buffed", false);
         sawRotationSpeed = mod->getSavedValue<float>("saw-rotation-speed", 0.f);
 
-        auto panel = CCScale9Sprite::create("GJ_square05.png", {0.0f, 0.0f, 80.0f, 80.0f});
+        auto panel = CCScale9Sprite::create("GJ_square01.png", {0.0f, 0.0f, 80.0f, 80.0f});
         panel->setContentSize({ 360.f, 260.f });
         panel->setPosition(winSize / 2);
 		panel->setID("create-comparison-background"_spr);
@@ -123,10 +124,17 @@ public:
         panel->addChild(buffedLabel);
 
 
-		auto nerfedBuffedInfo = InfoAlertButton::create("Info", "Select whether current selected level is the nerfed (blue) or buffed (red) version.", 0.5f);
+		auto infoSprite = CCSprite::createWithSpriteFrameName("GJ_infoIcon_001.png");
+		infoSprite->setScale(0.5f);
+
+		auto nerfedBuffedInfo = CCMenuItemSpriteExtra::create(
+			infoSprite,
+			this,
+			menu_selector(ComparisonMenu::onBuffedNerfedInfo)
+		);
+
 		nerfedBuffedInfo->setPosition({ 350.f, 205.f });
-		nerfedBuffedInfo->useAnimationType(MenuAnimationType::Scale);
-		panel->addChild(nerfedBuffedInfo);
+		menu->addChild(nerfedBuffedInfo);
 
         // set initial toggle state
         buffedToggle->toggle(isBuffed);
@@ -143,7 +151,7 @@ public:
 
         auto sawSpeedInput = TextInput::create(80.f, "0", "bigFont.fnt");
 		sawSpeedInput->setMaxCharCount(3);
-		sawSpeedInput->setFilter("0123456789");
+		sawSpeedInput->setFilter("0123456789-");
 		sawSpeedInput->setPosition({80.f, 125.f});
 		sawSpeedInput->setEnabled(true);
 		sawSpeedInput->setID("saw-speed-input"_spr);
@@ -153,6 +161,30 @@ public:
 	
 		sawSpeedNode = sawSpeedInput->getInputNode();
 		sawSpeedNode->setDelegate(this);
+
+		// remap groups
+		remapToggle = CCMenuItemToggler::createWithStandardSprites(
+			this,
+			menu_selector(ComparisonMenu::onNerfed),
+			0.8f
+		);
+        /* remapToggle->setPosition({ 160.f, 130.f });
+		remapToggle->setEnabled(false);
+        menu->addChild(remapToggle);
+
+        auto remapLabel = CCLabelBMFont::create("Remap groups", "goldFont.fnt");
+        remapLabel->setPosition({ 240.f, 130.f });
+		remapLabel->setScale(0.7);
+        panel->addChild(remapLabel);
+
+		auto remapInfo = CCMenuItemSpriteExtra::create(
+			infoSprite,
+			this,
+			menu_selector(ComparisonMenu::onComingSoonInfo)
+		);
+
+		remapInfo->setPosition({ 300.f, 145.f });
+		menu->addChild(remapInfo); */
 
         // buttons
         auto abortBtn = CCMenuItemSpriteExtra::create(
@@ -171,7 +203,7 @@ public:
         createBtn->setPosition({ 260.f, 20.f });
         menu->addChild(createBtn);
 
-        log::info("Menu loaded | ID={} | Buffed={} | Speed={}", targetLevelID, isBuffed, sawRotationSpeed);
+        // log::info("Menu loaded | ID={} | Buffed={} | Speed={}", targetLevelID, isBuffed, sawRotationSpeed);
         return true;
     }
 
@@ -182,8 +214,6 @@ public:
 		isBuffed = true;
 		buffedToggle->toggle(true);
 		nerfedToggle->toggle(false);
-
-		log::info("Role set to BUFFED");
 	}
 
 	void onNerfed(CCObject*) {
@@ -192,10 +222,23 @@ public:
 		isBuffed = false;
 		buffedToggle->toggle(false);
 		nerfedToggle->toggle(true);
-
-		log::info("Role set to NERFED");
 	}
 
+	void onBuffedNerfedInfo(CCObject*) {
+		FLAlertLayer::create(
+			"Info",
+			"Select whether currently opened level is the <cj>nerfed</c> or <cr>buffed</c> version.",
+			"OK"
+		)->show();
+	}
+
+	void onComingSoonInfo(CCObject*) {
+		FLAlertLayer::create(
+			"Info",
+			"This feature is coming soon!",
+			"OK"
+		)->show();
+	}
 
     void onAbort(CCObject*) {
         this->removeFromParentAndCleanup(true);
@@ -211,9 +254,7 @@ public:
 		mod->setSavedValue("is-buffed", isBuffed);
 		mod->setSavedValue("saw-rotation-speed", sawRotationSpeed);
 
-		log::info("CREATE pressed");
-		log::info("ID={} | Buffed={} | Speed={}",
-			targetLevelID, isBuffed, sawRotationSpeed);
+		// log::info("ID={} | Buffed={} | Speed={}", targetLevelID, isBuffed, sawRotationSpeed);
 
 		GameLevelManager* glm = GameLevelManager::sharedState();
 		GJGameLevel* targetLevel = glm->getSavedLevel(targetLevelID);
@@ -242,15 +283,16 @@ public:
 
 	void textChanged(CCTextInputNode* input) override {
 		std::string text = input->getString();
-		int value = text.empty() ? 0 : std::stoi(text);
 
 		if (input == levelIDNode) {
-			targetLevelID = value;
-			log::info("Level ID changed -> {}", targetLevelID);
+			targetLevelID = text.empty() ? 0 : std::stoi(text);
 		}
 		else if (input == sawSpeedNode) {
-			sawRotationSpeed = static_cast<float>(value);
-			log::info("Saw speed changed -> {}", sawRotationSpeed);
+			try {
+				sawRotationSpeed = (text.empty() || text == "-") ? 0.f : std::stof(text);
+			} catch (...) {
+				sawRotationSpeed = 0.f;
+			}
 		}
 	}
 };
@@ -263,9 +305,8 @@ class $modify(MakeLevelLayoutLayer, LevelInfoLayer) {
 			return false;
 
 		auto menu = this->getChildByID("left-side-menu");
-		log::info("{}", this->getChildren());
 		if (!menu) {
-			log::error("No CCMenu found");
+			log::error("left-side-menu not found");
 			return true;
 		}
 
@@ -283,7 +324,7 @@ class $modify(MakeLevelLayoutLayer, LevelInfoLayer) {
 		menu->addChild(btn);
 		menu->updateLayout();
 
-		log::info("Button added to first CCMenu");
+		log::info("Button added to left-side-menu");
 
 		return true;
 	}
@@ -358,7 +399,7 @@ std::string createComparison(GJGameLevel* level1, GJGameLevel* level2, const Com
 				splitStringsPairs.push_back({ splitStrings[i], splitStrings[i + 1] });
 			}
 
-			//log::info("Object before: {}", objectStr);
+			// log::info("Object before: {}", objectStr);
 
 			for (std::vector<std::string>& pair : splitStringsPairs) {
 				int propID = std::stoi(pair[0]);
@@ -460,7 +501,7 @@ std::string createComparison(GJGameLevel* level1, GJGameLevel* level2, const Com
 				objectStr = "";
 			}
 
-			//log::info("Object after: {}", objectStr);
+			// log::info("Object after: {}", objectStr);
 		}
 
 		first ? levelStringSplit1 = levelStringSplit : levelStringSplit2 = levelStringSplit;
@@ -472,8 +513,8 @@ std::string createComparison(GJGameLevel* level1, GJGameLevel* level2, const Com
 	for (int i = 0; i < firstElementSplit.size() - 1; i += 2) {
 		firstElementPairs.push_back({ firstElementSplit[i], firstElementSplit[i + 1] });
 	}
-	//log::info("{}", firstElement);
-	//log::info("{}", firstElementPairs);
+	// log::info("{}", firstElement);
+	// log::info("{}", firstElementPairs);
 
 	std::string newFirstElement;
 	for (std::vector<std::string>& pair : firstElementPairs) {
